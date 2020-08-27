@@ -1,0 +1,350 @@
+---
+title: "study1_20200827"
+output: rmarkdown::github_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r}
+
+rdat=read.csv("~/Google Drive/UT/papers/Dissertation/study 1/analyses/graded D notes/graded_20200403.csv",header=T) #this is the one I fixed the site name problem
+
+dat=rdat[,c(6,9:17,2,1)]
+
+#changing non-numeric values into NAs and drop NAs
+for(i in 1:10){
+  dat[,i]=as.numeric(as.character(dat[,i]))
+}
+
+library(na.tools)
+dat.omit=na.rm(dat)
+unique(dat.omit$site)#checking all sites names
+
+
+#changing column names
+names(dat.omit)[2]="dur"
+names(dat.omit)[3]="brk"
+names(dat.omit)[4]="dtm"
+names(dat.omit)[5]="pf"
+names(dat.omit)[6]="minf"
+names(dat.omit)[7]="maxf"
+names(dat.omit)[8]="bw"
+names(dat.omit)[9]="etrp"
+names(dat.omit)[10]="hnr"
+
+
+```
+
+1.2. Explore correlation between variables
+```{r}
+dim(dat.omit)
+
+library(corrplot)
+library(corrgram)
+corrplot.mixed(corrgram(dat.omit[,c(2:10)]))
+cor(dat.omit[,c(2:10)])
+```
+
+Histogram
+```{r}
+
+cn=colnames(dat.omit[,2:10])
+par(mfrow=c(3,3),mar=c(0.5,0.5,0.5,0.5))
+
+for(i in 2:10){
+  hist(dat[,i],main=cn[i-1])
+}
+
+```
+
+1.3 Classification: 3 contexts (food, mask, easo)
+```{r}
+x=dat.omit[,c(2:10)]
+y=dat.omit[,11]
+head(x)
+dim(x)
+
+#standardizing data
+sx=scale(x,center=T, scale=T)
+  
+
+
+library(caret)  
+library(MLeval)
+
+#dividing training vs test data
+set.seed(123)
+test=sample(1:nrow(sx),0.2*nrow(sx)) #making train index
+train=(-test)
+
+traindat=data.frame(x=sx[train,],y=y[train])
+testdat=data.frame(x=sx[test,],y=y[test])
+
+#Cross validation (learned from https://stackoverflow.com/questions/33470373/applying-k-fold-cross-validation-model-using-caret-package)
+
+# KNN
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10)
+knn.cv=train(y~., data=traindat,trControl=train_ctrl,method="knn")
+print(knn.cv)
+
+  
+# Random Forest
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10)
+rf.cv=train(y~., data=traindat,trControl=train_ctrl,method="rf")
+print(rf.cv)
+plot(varImp(object=rf.cv)) #variable importance plot
+
+# SVM(Linear kernel)
+set.seed(123)
+svml.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmLinear") #Q: Do I need to set a tune grid???
+print(svml.cv)
+svml.pred=predict(svml.cv,testdat)
+
+# SVM(radial kernel)
+set.seed(123)
+svmr.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmRadial") #Q: Do I need to set a tune grid???
+print(svmr.cv)
+
+# LDA
+set.seed(123)
+lda.cv=train(y~., data=traindat,trControl=train_ctrl,method="lda") #Q: Do I need to set a tune grid???
+print(lda.cv)
+
+#1.3.3 QDA
+set.seed(123)
+qda.cv=train(y~., data=traindat,trControl=train_ctrl,method="qda") #Q: Do I need to set a tune grid???
+print(qda.cv)
+  
+```  
+
+Classifying 2 contexts: Pred (Lumping easo and mask together) vs Food
+
+```{r}
+y=gsub("easo","pred",y)
+y=gsub("mask","pred",y)
+
+traindat$y=gsub("easo","pred",traindat$y)
+traindat$y=gsub("mask","pred",traindat$y)
+testdat$y=gsub("easo","pred",testdat$y)
+testdat$y=gsub("mask","pred",testdat$y)
+two_context_dat=rbind(testdat,traindat)
+
+```
+
+```{r}
+set.seed(123)
+#dividing training vs test data
+test=sample(1:nrow(sx),0.2*nrow(sx)) #making train index. Spliltting training and testdata to 80% and 20% ratio, respectively.
+train=(-test)
+
+traindat=data.frame(x=sx[train,],y=y[train])
+testdat=data.frame(x=sx[test,],y=y[test])
+
+#Cross validation (copied from https://stackoverflow.com/questions/33470373/applying-k-fold-cross-validation-model-using-caret-package)
+
+# KNN
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10)
+knn.cv=train(y~., data=traindat,trControl=train_ctrl,method="knn")
+print(knn.cv)
+knn.pred=predict(knn.cv,testdat)
+confusionMatrix(as.factor(knn.pred),as.factor(y[test]))
+
+# Random Forest
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10)
+rf.cv=train(y~., data=traindat,trControl=train_ctrl,method="rf")
+print(rf.cv)
+rf.pred=predict(rf.cv,testdat)
+confusionMatrix(as.factor(rf.pred),as.factor(y[test]))
+plot(varImp(object=rf.cv))
+
+# SVM(Linear)
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+svml.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmLinear") 
+svml.pred=predict(svml.cv,testdat)
+print(svml.cv)
+confusionMatrix(as.factor(svml.pred),as.factor(y[test]))
+
+# SVM(radial)
+set.seed(123)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+svmr.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmRadial") 
+print(svmr.cv)
+svmr.pred=predict(svmr.cv,testdat)
+confusionMatrix(as.factor(svmr.pred),as.factor(y[test]))
+
+# LDA
+set.seed(123)
+lda.cv=train(y~., data=traindat,trControl=train_ctrl,method="lda")
+print(lda.cv)
+lda.pred=predict(lda.cv,testdat)
+confusionMatrix(as.factor(lda.pred),as.factor(y[test]))
+
+# QDA
+set.seed(123)
+qda.cv=train(y~., data=traindat,trControl=train_ctrl,method="qda") 
+print(qda.cv)
+qda.pred=predict(qda.cv,testdat)
+confusionMatrix(as.factor(qda.pred),as.factor(y[test]))
+```
+
+```{r}
+#ROC curve
+
+library(ROCR)
+pred.knn=predict(knn.cv,testdat,type='prob')
+pred.rf=predict(rf.cv,testdat,type="prob")
+pred.svml=predict(svml.cv,testdat,type='prob')
+pred.svmr=predict(svmr.cv,testdat,type="prob")
+pred.lda=predict(lda.cv,testdat,type="prob")
+pred.qda=predict(qda.cv,testdat,type="prob")
+
+pred.knn1=prediction(pred.knn[,2],testdat$y)
+pred.rf1=prediction(pred.rf[,2],testdat$y)
+pred.svml1=prediction(pred.svml[,2],testdat$y)
+pred.svmr1=prediction(pred.svmr[,2],testdat$y)
+pred.lda1=prediction(pred.lda[,2],testdat$y)
+pred.qda1=prediction(pred.qda[,2],testdat$y)
+
+
+roc.knn=performance(pred.knn1,"tpr","fpr")
+roc.rf=performance(pred.rf1,"tpr","fpr")
+roc.svml=performance(pred.svml1,"tpr","fpr")
+roc.svmr=performance(pred.svmr1,"tpr","fpr")
+roc.lda=performance(pred.lda1,"tpr","fpr")
+roc.qda=performance(pred.qda1,"tpr","fpr")
+
+
+plot(roc.knn,col="orange",lwd=2)
+plot(roc.rf,add = T,col="red",lwd=2)
+plot(roc.svml,add=T,col="green",lwd=2)
+plot(roc.svmr,add=T,col="blue",lwd=2)
+plot(roc.lda,add=T,col="grey",lwd=2)
+plot(roc.qda,add=T,col="purple",lwd=2)
+legend("bottomright",legend=c("RF","KNN","SVM_L","SVM_R","LDA","QDA"),col=c("red","orange","green","blue","grey","purple"),lty=1,lwd=3,cex=1)
+
+
+```
+
+
+
+Linear mixed models 
+
+```{r}
+#####   lmerTest for 3 contexts
+library(lmerTest)
+library(emmeans)
+
+# Testing if "duration" of D notes are associated with contexts (3 levels: food and 2 predators)
+m1 = lmer(dur~context+(1|site/context),data=dat.omit)
+
+# Testing if "break" (i.e. inter-note interval) of D notes are associated with contexts (3 levels: food and 2 predators)
+m2 = lmer(brk~context+(1|site/context),data=dat.omit)
+
+# Testing if "break" (i.e. inter-note interval) of D notes are associated with contexts (3 levels: food and 2 predators)
+# m3 <- lmer(dtm~context+(1|site/context),data=dat.omit)#convergence error
+m3 <- lmer(dtm~context+(1|site/context),data=dat.omit,control = lmerControl(optimizer = "Nelder_Mead"))#solved: convergence warning)
+
+#Testing if "peak frequency" of D notes are associated with contexts (3 levels: food and 2 predators)
+m4 = lmer(pf~context+(1|site/context),data=dat.omit)
+
+# Testing if "minimum frequency" of D notes are associated with contexts (3 levels: food and 2 predators)
+m5 = lmer(minf~context+(1|site/context),data=dat.omit)
+
+# Testing if "maximum frequency" of D notes are associated with contexts (3 levels: food and 2 predators)
+#m6 <- lmer(maxf~context+(1|site/context),data=dat.omit) #x converge
+m6 <- lmer(maxf~context+(1|site/context),data=dat.omit,control = lmerControl(optimizer = "Nelder_Mead"))
+
+# Testing if "bandwidth" of D notes are associated with contexts (3 levels: food and 2 predators)
+m7 = lmer(bw~context+(1|site/context),data=dat.omit)
+
+# Testing if "entropy" of D notes are associated with contexts (3 levels: food and 2 predators)
+m8 = lmer(etrp~context+(1|site/context),data=dat.omit)
+
+# Testing if "harmonic-to-noise ratio" of D notes are associated with contexts (3 levels: food and 2 predators)
+m9 = lmer(hnr~context+(1|site/context),data=dat.omit)
+
+#Testing Assumption of lmer 1: residual normality in lmer models
+shapiro.test(resid(m1))
+shapiro.test(resid(m2))
+shapiro.test(resid(m3))
+shapiro.test(resid(m4))
+shapiro.test(resid(m5))
+shapiro.test(resid(m6))
+shapiro.test(resid(m7))
+shapiro.test(resid(m8))
+shapiro.test(resid(m9))
+
+#except W = 0.87196 in m4, all exceeds >0.9.
+#log transformed pf in m4, and now W > 0.9.
+m4_1 = lmer(log(pf)~context+(1|site/context),data=dat.omit)
+shapiro.test(resid(m4_1))
+
+#seeign all results
+anova(m1) #NS
+anova(m2) #NS
+anova(m3) #NS
+anova(m4_1)#significant => run emmans() for post-hoc test
+anova(m5)#NS
+anova(m6)#significant => run emmans() for post-hoc test
+anova(m7)#significant => run emmans() for post-hoc test
+anova(m8)#significant => run emmans() for post-hoc test
+anova(m9) #NS
+
+#post-hoc tests
+emm4=emmeans(m4_1,specs=pairwise~context,adjust="none") 
+emm4
+
+emm6=emmeans(m6,specs=pairwise~context,adjust="none") 
+emm6
+
+emm7=emmeans(m7,specs=pairwise~context,adjust="none") 
+emm7
+
+emm8=emmeans(m8,specs=pairwise~context,adjust="none") 
+emm8
+
+
+dat.omit$context = factor(dat.omit$context,levels(dat.omit$context)[c(2,3,1)])
+
+library(ggplot2)
+  p=ggplot(dat.omit,aes(x=context,y=log(pf),fill=context))+
+  geom_violin(trim=F)+
+  geom_boxplot(width=0.1,fill="white")+
+  theme_classic()+
+  labs(title="",x="context", y = "log(Peak Frequency) (Hz) ") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))
+  cp=p+scale_fill_manual(values=c("white", "lightgrey", "darkgrey"))
+cp
+
+
+library(ggplot2)
+  p=ggplot(dat.omit,aes(x=context,y=maxf,fill=context))+
+  geom_violin(trim=F)+
+  geom_boxplot(width=0.1,fill="white")+
+  theme_classic()+
+  labs(title="",x="context", y = "Max frequency (Hz) ") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))
+  cp=p+scale_fill_manual(values=c("white", "lightgrey", "darkgrey"))
+cp
+
+  p=ggplot(dat.omit,aes(x=context,y=bw,fill=context))+
+  geom_violin(trim=F)+
+  geom_boxplot(width=0.1,fill="white")+
+  theme_classic()+
+  labs(title="",x="context", y = "Bandwidth (Hz) ") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))+
+  ylim(0,6000)
+  cp=p+scale_fill_manual(values=c("white", "lightgrey", "darkgrey"))
+cp
+
+
+```
