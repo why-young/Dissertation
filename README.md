@@ -1,2 +1,0 @@
-# Dissertation
-PhD dissertation projects
