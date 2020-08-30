@@ -1,0 +1,1070 @@
+---
+title: "study 3"
+output: rmarkdown::github_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+1. File opening and standardizing independent variables
+```{r}
+#olddat=read.csv("~/Google Drive/UT/papers/Dissertation/study 3/dat.omit_20200317.csv",header=T) #this is old data with 11 incorrect values
+rdat=read.csv("~/Google Drive/UT/papers/Dissertation/study 1/analyses/graded D notes/graded_20200416_1.csv",header=T)
+
+dat=rdat[,c(6,9:18,2,1,30,4,7,8,3,31,5)]
+#changing non-numeric values into NAs
+for(i in 2:10){
+  dat[,i]=as.numeric(as.character(dat[,i]))
+}
+
+library(na.tools)
+dat=na.rm(dat)
+unique(dat$site)#checking all sites names
+
+#changing column names
+names(dat)[3]="dur"
+names(dat)[4]="brk"
+names(dat)[5]="dtm"
+names(dat)[6]="pf"
+names(dat)[7]="minf"
+names(dat)[8]="maxf"
+names(dat)[9]="bw"
+names(dat)[10]="etrp"
+names(dat)[11]="hnr"
+
+#changing column names
+names(rdat)[10]="dur"
+names(rdat)[11]="brk"
+names(rdat)[12]="dtm"
+names(rdat)[13]="pf"
+names(rdat)[14]="minf"
+names(rdat)[15]="maxf"
+names(rdat)[16]="bw"
+names(rdat)[17]="etrp"
+names(rdat)[18]="hnr"
+
+
+#subsetting
+
+food=dat[dat$context=="food",]
+easo=dat[dat$context=="easo",]
+mask=dat[dat$context=="mask",]
+
+
+#standardizing each dataset
+sfood=scale(food[,3:11], center=T, scale=T)
+seaso=scale(easo[,3:11], center=T, scale=T)
+smask=scale(mask[,3:11], center=T, scale=T)
+sdat=scale(dat[,3:11],center=T, scale=T)
+```
+
+1. Geographic variation
+1.1 Classifying 2 locations (UTFRREC and NDSP) 
+regardless of contexts, controlling contexts (easo, food, mask, respectively)
+
+
+```{r}
+library(caret)  
+library(MLeval)
+#dividing training vs test data
+set.seed(123)
+ftest=sample(1:nrow(sfood),0.2*nrow(sfood)) #making train index
+ftrain=(-ftest)
+#dim(sx[train,])
+#dim(sx[test,])
+#length(y[train])
+#length(y[test])
+fy=food[,19]
+ftraindat=data.frame(x=sfood[ftrain,],y=fy[ftrain])
+ftestdat=data.frame(x=sfood[ftest,],y=fy[ftest])
+
+
+```
+1.1.1 Food context only- 6 ML parts
+```{r}
+#Cross validation (copied from https://stackoverflow.com/questions/33470373/applying-k-fold-cross-validation-model-using-caret-package)
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.knn.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="knn")
+print(f.knn.cv)# to see accuracy
+f.knn.pred=predict(f.knn.cv,ftestdat)
+confusionMatrix(f.knn.pred,fy[ftest])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.rf.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="rf")
+print(f.rf.cv)
+f.rf.pred=predict(f.rf.cv,ftestdat)
+confusionMatrix(f.rf.pred,fy[ftest])
+plot(varImp(object=f.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+f.svml.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="svmLinear") 
+print(f.svml.cv)
+f.svml.pred=predict(f.svml.cv,ftestdat)
+confusionMatrix(f.svml.pred,fy[ftest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+f.svmr.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="svmRadial") 
+print(f.svmr.cv)
+f.svmr.pred=predict(f.svmr.cv,ftestdat)
+confusionMatrix(f.svmr.pred,fy[ftest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.lda.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="lda") 
+print(f.lda.cv)
+f.lda.pred=predict(f.lda.cv,ftestdat)
+confusionMatrix(f.lda.pred,fy[ftest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.qda.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="qda") 
+print(f.qda.cv)
+f.qda.pred=predict(f.qda.cv,ftestdat)
+confusionMatrix(f.qda.pred,fy[ftest])
+
+
+#ROC curve 
+library(ROCR)
+f.pred.knn=predict(f.knn.cv,ftestdat,type='prob')
+f.pred.rf=predict(f.rf.cv,ftestdat,type="prob")
+f.pred.svml=predict(f.svml.cv,ftestdat,type="prob")
+f.pred.svmr=predict(f.svmr.cv,ftestdat,type="prob")
+f.pred.lda=predict(f.lda.cv,ftestdat,type="prob")
+f.pred.qda=predict(f.qda.cv,ftestdat,type="prob")
+
+f.pred.knn1=prediction(f.pred.knn[,2],ftestdat$y)
+f.pred.rf1=prediction(f.pred.rf[,2],ftestdat$y)
+f.pred.svml1=prediction(f.pred.svml[,2],ftestdat$y)
+f.pred.svmr1=prediction(f.pred.svmr[,2],ftestdat$y)
+f.pred.lda1=prediction(f.pred.lda[,2],ftestdat$y)
+f.pred.qda1=prediction(f.pred.qda[,2],ftestdat$y)
+
+f.roc.knn=performance(f.pred.knn1,"tpr","fpr")
+f.roc.rf=performance(f.pred.rf1,"tpr","fpr")
+f.roc.svml=performance(f.pred.svml1,"tpr","fpr")
+f.roc.svmr=performance(f.pred.svmr1,"tpr","fpr")
+f.roc.lda=performance(f.pred.lda1,"tpr","fpr")
+f.roc.qda=performance(f.pred.qda1,"tpr","fpr")
+
+plot(f.roc.knn,col="orange",lwd=2)
+plot(f.roc.rf,add=T,col="red",lwd=2)
+plot(f.roc.svml,add=T,col="green",lwd=2)
+plot(f.roc.svmr,add=T,col="blue",lwd=2)
+plot(f.roc.lda,add=T,col="grey",lwd=2)
+plot(f.roc.qda,add=T,col="purple",lwd=2)
+legend("bottomright",legend=c("RF","KNN","SVM_L","SVM_R","LDA","QDA"),col=c("red","orange","green","blue","grey","purple"),lty=1,lwd=3,cex=0.7)
+
+```
+1.1.2. Mask context only- 6 ML parts
+
+```{r}
+
+set.seed(123)
+mtest=sample(1:nrow(smask),0.2*nrow(smask)) #making train index
+mtrain=(-mtest)
+
+my=mask[,19]
+mtraindat=data.frame(x=smask[mtrain,],y=my[mtrain])
+mtestdat=data.frame(x=smask[mtest,],y=my[mtest])
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+m.knn.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="knn")
+print(m.knn.cv)
+m.knn.pred=predict(m.knn.cv,mtestdat)
+confusionMatrix(m.knn.pred,my[mtest])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+m.rf.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="rf")
+print(m.rf.cv)
+m.rf.pred=predict(m.rf.cv,mtestdat)
+confusionMatrix(m.rf.pred,my[mtest])
+plot(varImp(object=m.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+m.svml.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="svmLinear") 
+print(m.svml.cv)
+m.svml.pred=predict(m.svml.cv,mtestdat)
+confusionMatrix(m.svml.pred,my[mtest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+m.svmr.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="svmRadial") 
+print(m.svmr.cv)
+m.svmr.pred=predict(m.svmr.cv,mtestdat)
+confusionMatrix(m.svmr.pred,my[mtest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+m.lda.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="lda") #Q: Do I need to set a tune grid???
+print(m.lda.cv)
+m.lda.pred=predict(m.lda.cv,mtestdat)
+confusionMatrix(m.lda.pred,my[mtest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+m.qda.cv=train(y~., data=mtraindat,trControl=train_ctrl,method="qda") #Q: Do I need to set a tune grid???
+print(m.qda.cv)
+m.qda.pred=predict(m.qda.cv,mtestdat)
+confusionMatrix(m.qda.pred,my[mtest])
+
+#ROC curve 
+library(ROCR)
+m.pred.knn=predict(m.knn.cv,mtestdat,type='prob')
+m.pred.rf=predict(m.rf.cv,mtestdat,type="prob")
+m.pred.svml=predict(m.svml.cv,mtestdat,type="prob")
+m.pred.svmr=predict(m.svmr.cv,mtestdat,type="prob")
+m.pred.lda=predict(m.lda.cv,mtestdat,type="prob")
+m.pred.qda=predict(m.qda.cv,mtestdat,type="prob")
+
+m.pred.knn1=prediction(m.pred.knn[,2],mtestdat$y)
+m.pred.rf1=prediction(m.pred.rf[,2],mtestdat$y)
+m.pred.svml1=prediction(m.pred.svml[,2],mtestdat$y)
+m.pred.svmr1=prediction(m.pred.svmr[,2],mtestdat$y)
+m.pred.lda1=prediction(m.pred.lda[,2],mtestdat$y)
+m.pred.qda1=prediction(m.pred.qda[,2],mtestdat$y)
+
+m.roc.knn=performance(m.pred.knn1,"tpr","fpr")
+m.roc.rf=performance(m.pred.rf1,"tpr","fpr")
+m.roc.svml=performance(m.pred.svml1,"tpr","fpr")
+m.roc.svmr=performance(m.pred.svmr1,"tpr","fpr")
+m.roc.lda=performance(m.pred.lda1,"tpr","fpr")
+m.roc.qda=performance(m.pred.qda1,"tpr","fpr")
+
+plot(m.roc.knn,col="orange",lwd=2)
+plot(m.roc.rf,add=T,col="red",lwd=2)
+plot(m.roc.svml,add=T,col="green",lwd=2)
+plot(m.roc.svmr,add=T,col="blue",lwd=2)
+plot(m.roc.lda,add=T,col="grey",lwd=2)
+plot(m.roc.qda,add=T,col="purple",lwd=2)
+legend("bottomright",legend=c("RF","KNN","SVM_L","SVM_R","LDA","QDA"),col=c("red","orange","green","blue","grey","purple"),lty=1,lwd=3,cex=0.7)
+
+
+```
+
+1.1.3. Classifying 2 locations in Easo context only- 6 ML parts
+```{r}
+set.seed(123)
+etest=sample(1:nrow(seaso),0.2*nrow(seaso)) #making train index
+etrain=(-etest)
+
+ey=easo[,19]
+etraindat=data.frame(x=seaso[etrain,],y=ey[etrain])
+etestdat=data.frame(x=seaso[etest,],y=ey[etest])
+
+#1.3.1 KNN
+
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.knn.cv=train(y~., data=etraindat,trControl=train_ctrl,method="knn")
+print(e.knn.cv)
+e.knn.pred=predict(e.knn.cv,etestdat)
+confusionMatrix(e.knn.pred,ey[etest])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.rf.cv=train(y~., data=etraindat,trControl=train_ctrl,method="rf")
+print(e.rf.cv)
+e.rf.pred=predict(e.rf.cv,etestdat)
+confusionMatrix(e.rf.pred,ey[etest])
+plot(varImp(object=e.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+e.svml.cv=train(y~., data=etraindat,trControl=train_ctrl,method="svmLinear") 
+print(e.svml.cv)
+e.svml.pred=predict(e.svml.cv,etestdat)
+confusionMatrix(e.svml.pred,ey[etest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+e.svmr.cv=train(y~., data=etraindat,trControl=train_ctrl,method="svmRadial") 
+print(e.svmr.cv)
+e.svmr.pred=predict(e.svmr.cv,etestdat)
+confusionMatrix(e.svmr.pred,ey[etest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.lda.cv=train(y~., data=etraindat,trControl=train_ctrl,method="lda") 
+print(e.lda.cv)
+e.lda.pred=predict(e.lda.cv,etestdat)
+confusionMatrix(e.lda.pred,ey[etest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.qda.cv=train(y~., data=etraindat,trControl=train_ctrl,method="qda") #Q: Do I need to set a tune grid???
+print(e.qda.cv)
+e.qda.pred=predict(e.qda.cv,etestdat)
+confusionMatrix(e.qda.pred,ey[etest])
+
+library(ROCR)
+e.pred.knn=predict(e.knn.cv,etestdat,type='prob')
+e.pred.rf=predict(e.rf.cv,etestdat,type="prob")
+e.pred.svml=predict(e.svml.cv,etestdat,type="prob")
+e.pred.svmr=predict(e.svmr.cv,etestdat,type="prob")
+e.pred.lda=predict(e.lda.cv,etestdat,type="prob")
+e.pred.qda=predict(e.qda.cv,etestdat,type="prob")
+
+e.pred.knn1=prediction(e.pred.knn[,2],etestdat$y)
+e.pred.rf1=prediction(e.pred.rf[,2],etestdat$y)
+e.pred.svml1=prediction(e.pred.svml[,2],etestdat$y)
+e.pred.svmr1=prediction(e.pred.svmr[,2],etestdat$y)
+e.pred.lda1=prediction(e.pred.lda[,2],etestdat$y)
+e.pred.qda1=prediction(e.pred.qda[,2],etestdat$y)
+
+e.roc.knn=performance(e.pred.knn1,"tpr","fpr")
+e.roc.rf=performance(e.pred.rf1,"tpr","fpr")
+e.roc.svml=performance(e.pred.svml1,"tpr","fpr")
+e.roc.svmr=performance(e.pred.svmr1,"tpr","fpr")
+e.roc.lda=performance(e.pred.lda1,"tpr","fpr")
+e.roc.qda=performance(e.pred.qda1,"tpr","fpr")
+
+plot(e.roc.knn,col="orange",lwd=2)
+plot(e.roc.rf,add=T,col="red",lwd=2)
+plot(e.roc.svml,add=T,col="green",lwd=2)
+plot(e.roc.svmr,add=T,col="blue",lwd=2)
+plot(e.roc.lda,add=T,col="grey",lwd=2)
+plot(e.roc.qda,add=T,col="purple",lwd=2)
+legend("bottomright",legend=c("RF","KNN","SVM_L","SVM_R","LDA","QDA"),col=c("red","orange","green","blue","grey","purple"),lty=1,lwd=3,cex=0.7)
+
+```
+1.1.4. UTFRREC vs NDSP disregarding context diff (all 3 contexts together)
+```{r}
+set.seed(123)
+test=sample(1:nrow(sdat),0.2*nrow(sdat)) 
+train=(-test)
+
+y=dat[,19]
+traindat=data.frame(x=sdat[train,],y=y[train])
+testdat=data.frame(x=sdat[test,],y=y[test])
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+knn.cv=train(y~., data=traindat,trControl=train_ctrl,method="knn")
+print(knn.cv)
+knn.pred=predict(knn.cv,testdat)
+confusionMatrix(knn.pred,y[test])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+rf.cv=train(y~., data=traindat,trControl=train_ctrl,method="rf")
+print(rf.cv)
+rf.pred=predict(rf.cv,testdat)
+confusionMatrix(rf.pred,y[test])
+plot(varImp(object=rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+svml.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmLinear") 
+print(svml.cv)
+svml.pred=predict(svml.cv,testdat)
+confusionMatrix(svml.pred,y[test])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+svmr.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmRadial") 
+print(svmr.cv)
+svmr.pred=predict(svmr.cv,testdat)
+confusionMatrix(svmr.pred,y[test])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+lda.cv=train(y~., data=traindat,trControl=train_ctrl,method="lda") 
+print(lda.cv)
+lda.pred=predict(lda.cv,testdat)
+confusionMatrix(lda.pred,y[test])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+qda.cv=train(y~., data=traindat,trControl=train_ctrl,method="qda") 
+print(qda.cv)
+qda.pred=predict(qda.cv,testdat)
+confusionMatrix(qda.pred,y[test])
+
+library(ROCR)
+pred.knn=predict(knn.cv,testdat,type='prob')
+pred.rf=predict(rf.cv,testdat,type="prob")
+pred.svml=predict(svml.cv,testdat,type="prob")
+pred.svmr=predict(svmr.cv,testdat,type="prob")
+pred.lda=predict(lda.cv,testdat,type="prob")
+pred.qda=predict(qda.cv,testdat,type="prob")
+
+pred.knn1=prediction(pred.knn[,2],testdat$y)
+pred.rf1=prediction(pred.rf[,2],testdat$y)
+pred.svml1=prediction(pred.svml[,2],testdat$y)
+pred.svmr1=prediction(pred.svmr[,2],testdat$y)
+pred.lda1=prediction(pred.lda[,2],testdat$y)
+pred.qda1=prediction(pred.qda[,2],testdat$y)
+
+roc.knn=performance(pred.knn1,"tpr","fpr")
+roc.rf=performance(pred.rf1,"tpr","fpr")
+roc.svml=performance(pred.svml1,"tpr","fpr")
+roc.svmr=performance(pred.svmr1,"tpr","fpr")
+roc.lda=performance(pred.lda1,"tpr","fpr")
+roc.qda=performance(pred.qda1,"tpr","fpr")
+
+plot(roc.knn,col="orange",lwd=2)
+plot(roc.rf,add=T,col="red",lwd=2)
+plot(roc.svml,add=T,col="green",lwd=2)
+plot(roc.svmr,add=T,col="blue",lwd=2)
+plot(roc.lda,add=T,col="grey",lwd=2)
+plot(roc.qda,add=T,col="purple",lwd=2)
+legend("bottomright",legend=c("RF","KNN","SVM_L","SVM_R","LDA","QDA"),col=c("red","orange","green","blue","grey","purple"),lty=1,lwd=3,cex=0.7)
+```
+1.2 Classifying 3 contexts in a separate location
+
+```{r}
+#subsetting
+
+utfrrec=dat[dat$Location=="UTFRREC",]
+ndsp=dat[dat$Location=="NDSP",]
+
+
+#standardizing each dataset
+sutfrrec=scale(utfrrec[,3:11],center=T, scale=T)
+sndsp= scale(ndsp[,3:11],center=T, scale=T)
+```
+1.2.1 UTFRREC only
+```{r}
+set.seed(123)
+utest=sample(1:nrow(sutfrrec),0.2*nrow(sutfrrec)) #making train index
+utrain=(-utest)
+
+uy=utfrrec[,18]
+utraindat=data.frame(x=sutfrrec[utrain,],y=uy[utrain])
+utestdat=data.frame(x=sutfrrec[utest,],y=uy[utest])
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+u.knn.cv=train(y~., data=utraindat,trControl=train_ctrl,method="knn")
+print(u.knn.cv)
+u.knn.pred=predict(u.knn.cv,utestdat)
+confusionMatrix(u.knn.pred,uy[utest],mode="prec_recall")
+
+
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+u.rf.cv=train(y~., data=utraindat,trControl=train_ctrl,method="rf")
+print(u.rf.cv)
+u.rf.pred=predict(u.rf.cv,utestdat)
+confusionMatrix(u.rf.pred,uy[utest],mode="prec_recall")
+plot(varImp(object=u.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+u.svml.cv=train(y~., data=utraindat,trControl=train_ctrl,method="svmLinear") 
+print(u.svml.cv)
+u.svml.pred=predict(u.svml.cv,utestdat)
+confusionMatrix(u.svml.pred,uy[utest],mode="prec_recall")
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+u.svmr.cv=train(y~., data=utraindat,trControl=train_ctrl,method="svmRadial") 
+print(u.svmr.cv)
+u.svmr.pred=predict(u.svmr.cv,utestdat)
+confusionMatrix(u.svmr.pred,uy[utest],mode="prec_recall")
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+u.lda.cv=train(y~., data=utraindat,trControl=train_ctrl,method="lda") 
+print(u.lda.cv)
+u.lda.pred=predict(u.lda.cv,utestdat)
+confusionMatrix(u.lda.pred,uy[utest],mode="prec_recall")
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+u.qda.cv=train(y~., data=utraindat,trControl=train_ctrl,method="qda")
+print(u.qda.cv)
+u.qda.pred=predict(u.qda.cv,utestdat)
+confusionMatrix(u.qda.pred,uy[utest],mode="prec_recall")
+
+```
+
+1.2.2 NDSP only
+
+```{r}
+set.seed(123)
+ntest=sample(1:nrow(sndsp),0.2*nrow(sndsp))
+ntrain=(-ntest)
+ny=ndsp[,18] #this column represents context
+ntraindat=data.frame(x=sndsp[ntrain,],y=ny[ntrain])
+ntestdat=data.frame(x=sndsp[ntest,],y=ny[ntest])
+
+#1.3.1 KNN
+
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+n.knn.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="knn")
+print(n.knn.cv)
+n.knn.pred=predict(n.knn.cv,ntestdat)
+confusionMatrix(n.knn.pred,ny[ntest])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+n.rf.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="rf")
+print(n.rf.cv)
+n.rf.pred=predict(n.rf.cv,ntestdat)
+confusionMatrix(n.rf.pred,ny[ntest])
+plot(varImp(object=n.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+n.svml.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="svmLinear")
+print(n.svml.cv)
+n.svml.pred=predict(n.svml.cv,ntestdat)
+confusionMatrix(n.svml.pred,ny[ntest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+n.svmr.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="svmRadial") 
+print(n.svmr.cv)
+n.svmr.pred=predict(n.svmr.cv,ntestdat)
+confusionMatrix(n.svmr.pred,ny[ntest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+n.lda.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="lda")
+print(n.lda.cv)
+n.lda.pred=predict(n.lda.cv,ntestdat)
+confusionMatrix(n.lda.pred,ny[ntest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+n.qda.cv=train(y~., data=ntraindat,trControl=train_ctrl,method="qda")
+print(n.qda.cv)
+n.qda.pred=predict(n.qda.cv,ntestdat)
+confusionMatrix(n.qda.pred,ny[ntest])
+
+
+```
+
+1.3 Site classification in food context, owl context and in all contexts
+Acoustic properties differences across location and contexts
+1.3.1 food context only
+
+```{r}
+#since AR1, etea, F, I, UV3, W1 sample size in food are lower than 50, just exclude them from this analyses. too small sample classification is less meaningful
+food=food[-which(food$site=="AR1"),]
+food=food[-which(food$site=="etea"),]
+food=food[-which(food$site=="F"),]
+food=food[-which(food$site=="I"),]
+food=food[-which(food$site=="UV3"),]
+food=food[-which(food$site=="W1"),]
+food=food[-which(food$site=="ecamping"),]
+food=food[-which(food$site=="esam"),]
+food=food[-which(food$site=="O"),]
+food=food[-which(food$site=="UV1"),]
+food=food[-which(food$site=="UV2"),]
+
+
+
+
+unique(food$site)# check if these sites fallen out correctly
+food$site=factor(food$site)
+sfood=scale(food[,3:11], center=T, scale=T)
+dim(sfood)
+
+#dividing training vs test data
+set.seed(123)
+ftest=sample(1:nrow(sfood),0.4*nrow(sfood)) #making train index
+ftrain=(-ftest)
+
+fy=food[,12]#this is site, under locations
+fy=factor(food[,12])#Dropping off some unused levels (otherwise, edam, ecamping, wcabin will appear even though there are no rows with this value)
+
+ftraindat=data.frame(x=sfood[ftrain,],y=fy[ftrain])
+ftestdat=data.frame(x=sfood[ftest,],y=fy[ftest])
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.knn.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="knn")
+print(f.knn.cv)
+f.knn.pred=predict(f.knn.cv,ftestdat)
+confusionMatrix(f.knn.pred,fy[ftest],mode="prec_recall") 
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.rf.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="rf")
+print(f.rf.cv)
+f.rf.pred=predict(f.rf.cv,ftestdat)
+confusionMatrix(f.rf.pred,fy[ftest])
+plot(varImp(object=f.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+f.svml.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="svmLinear")
+print(f.svml.cv)
+f.svml.pred=predict(f.svml.cv,ftestdat)
+confusionMatrix(f.svml.pred,fy[ftest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+f.svmr.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="svmRadial")
+print(f.svmr.cv)
+f.svmr.pred=predict(f.svmr.cv,ftestdat)
+confusionMatrix(f.svmr.pred,fy[ftest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.lda.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="lda")
+print(f.lda.cv)
+f.lda.pred=predict(f.lda.cv,ftestdat)
+confusionMatrix(f.lda.pred,fy[ftest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+f.qda.cv=train(y~., data=ftraindat,trControl=train_ctrl,method="qda")
+print(f.qda.cv)
+f.qda.pred=predict(f.qda.cv,ftestdat)
+confusionMatrix(f.qda.pred,fy[ftest])
+
+
+```
+1.3.2 Flock (site) classification in "easo" context (owl predator) only
+
+
+```{r}
+
+easo=easo[-which(easo$site=="AR1"),]
+easo=easo[-which(easo$site=="AR2"),]
+easo=easo[-which(easo$site=="C"),]
+easo=easo[-which(easo$site=="edam"),]
+easo=easo[-which(easo$site=="esam"),]
+easo=easo[-which(easo$site=="F"),]
+easo=easo[-which(easo$site=="I"),]
+easo=easo[-which(easo$site=="J"),]
+easo=easo[-which(easo$site=="K"),]
+easo=easo[-which(easo$site=="N"),]
+easo=easo[-which(easo$site=="UV1"),]
+easo=easo[-which(easo$site=="UV2"),]
+easo=easo[-which(easo$site=="UV3"),]
+easo=easo[-which(easo$site=="W1"),]
+easo=easo[-which(easo$site=="wburries"),]
+easo=easo[-which(easo$site=="wcabin"),]
+easo=easo[-which(easo$site=="wchuck"),]
+easo=easo[-which(easo$site=="wdump"),]
+easo=easo[-which(easo$site=="wexercise"),]
+
+
+
+unique(easo$site)# check if these sites fallen out correctly
+easo$site=factor(easo$site)
+seaso=scale(easo[,3:11], center=T, scale=T)
+dim(seaso)
+
+
+#dividing training vs test data
+set.seed(123)
+etest=sample(1:nrow(seaso),0.4*nrow(seaso)) #making train index
+etrain=(-etest)
+
+ey=easo[,12]
+etraindat=data.frame(x=seaso[etrain,],y=ey[etrain])
+etestdat=data.frame(x=seaso[etest,],y=ey[etest])
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.knn.cv=train(y~., data=etraindat,trControl=train_ctrl,method="knn")
+print(e.knn.cv)
+e.knn.pred=predict(e.knn.cv,etestdat)
+confusionMatrix(e.knn.pred,ey[etest])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.rf.cv=train(y~., data=etraindat,trControl=train_ctrl,method="rf")
+print(e.rf.cv)
+e.rf.pred=predict(e.rf.cv,etestdat)
+confusionMatrix(e.rf.pred,ey[etest])
+plot(varImp(object=e.rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+e.svml.cv=train(y~., data=etraindat,trControl=train_ctrl,method="svmLinear") 
+print(e.svml.cv)
+e.svml.pred=predict(e.svml.cv,etestdat)
+confusionMatrix(e.svml.pred,ey[etest])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+e.svmr.cv=train(y~., data=etraindat,trControl=train_ctrl,method="svmRadial") 
+print(e.svmr.cv)
+e.svmr.pred=predict(e.svmr.cv,etestdat)
+confusionMatrix(e.svmr.pred,ey[etest])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.lda.cv=train(y~., data=etraindat,trControl=train_ctrl,method="lda") 
+print(e.lda.cv)
+e.lda.pred=predict(e.lda.cv,etestdat)
+confusionMatrix(e.lda.pred,ey[etest])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+e.qda.cv=train(y~., data=etraindat,trControl=train_ctrl,method="qda")
+print(e.qda.cv)
+e.qda.pred=predict(e.qda.cv,etestdat)
+confusionMatrix(e.qda.pred,ey[etest])
+
+
+```
+
+
+1.3.3 all contexts (food, easo, mask) mixed with 18 sites
+
+```{r}
+dat18=dat
+dat18=dat18[-which(dat18$site=="edam"),]
+dat18=dat18[-which(dat18$site=="ecamping"),]
+dat18=dat18[-which(dat18$site=="wexercise"),]
+dat18=dat18[-which(dat18$site=="I"),]
+dat18=dat18[-which(dat18$site=="UV3"),]
+dat18=dat18[-which(dat18$site=="W1"),]
+dat18=dat18[-which(dat18$site=="wcabin"),]
+
+
+unique(dat18$site)# check if these sites fallen out correctly
+dat18$site=factor(dat18$site)
+levels(dat18$site)
+sdat18=scale(dat18[,3:11], center=T, scale=T)
+dim(sdat18)
+
+
+
+set.seed(123)
+test=sample(1:nrow(sdat18),0.4*nrow(sdat18)) #making train index
+train=(-test)
+
+y=dat18[,12]
+levels(y)
+traindat=data.frame(x=sdat18[train,],y=y[train])
+testdat=data.frame(x=sdat18[test,],y=y[test])
+levels(traindat$y)
+levels(testdat$y)
+
+#1.3.1 KNN
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+knn.cv=train(y~., data=traindat,trControl=train_ctrl,method="knn")
+print(knn.cv)
+knn.pred=predict(knn.cv,testdat)
+confusionMatrix(knn.pred,y[test])
+  
+#1.3.2 Random Forest
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+rf.cv=train(y~., data=traindat,trControl=train_ctrl,method="rf")
+print(rf.cv)
+rf.pred=predict(rf.cv,testdat)
+confusionMatrix(rf.pred,y[test])
+plot(varImp(object=rf.cv))
+
+#1.3.3 SVM(Linear)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+svml.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmLinear") 
+print(svml.cv)
+svml.pred=predict(svml.cv,testdat)
+confusionMatrix(svml.pred,y[test])
+
+#1.3.3 SVM(radial)
+train_ctrl=trainControl(method="cv",number=10,classProbs=TRUE)
+set.seed(123)
+svmr.cv=train(y~., data=traindat,trControl=train_ctrl,method="svmRadial")
+print(svmr.cv)
+svmr.pred=predict(svmr.cv,testdat)
+confusionMatrix(svmr.pred,y[test])
+
+#1.3.3 LDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+lda.cv=train(y~., data=traindat,trControl=train_ctrl,method="lda") 
+print(lda.cv)
+lda.pred=predict(lda.cv,testdat)
+confusionMatrix(lda.pred,y[test])
+
+#1.3.3 QDA
+train_ctrl=trainControl(method="cv",number=10)
+set.seed(123)
+qda.cv=train(y~., data=traindat,trControl=train_ctrl,method="qda") 
+print(qda.cv)
+qda.pred=predict(qda.cv,testdat)
+confusionMatrix(qda.pred,y[test])
+
+
+```
+
+1.4 9 acoustic variable differences across locations and all contexts
+```{r}
+library(lmerTest)
+m1_1 = lmer(dur~Location*context+(1|site/context),data=dat)
+m2_1 = lmer(brk~Location*context+(1|site/context),data=dat)
+m3_1 = lmer(dtm~Location*context+(1|site/context),data=dat)
+m4_1 = lmer(pf~Location*context+(1|site/context),data=dat)
+m5_1 = lmer(minf~Location*context+(1|site/context),data=dat)
+m6_1 = lmer(maxf~Location*context+(1|site/context),data=dat)
+m7_1 = lmer(bw~Location*context+(1|site/context),data=dat)
+m8_1 = lmer(etrp~Location*context+(1|site/context),data=dat,control = lmerControl(optimizer = "Nelder_Mead"))
+m9_1 = lmer(hnr~Location*context+(1|site/context),data=dat)
+
+shapiro.test(resid(m1_1))
+shapiro.test(resid(m2_1))
+shapiro.test(resid(m3_1))
+shapiro.test(resid(m4_1))#only this is <0.9
+shapiro.test(resid(m5_1))
+shapiro.test(resid(m6_1))
+shapiro.test(resid(m7_1))
+shapiro.test(resid(m8_1))
+shapiro.test(resid(m9_1))
+#Except m4 all exceed 0.9
+
+m4_1 <- lmer(log(pf)~Location*context+(1|site/context),data=dat)
+shapiro.test(resid(m4_1))#now the m4 W>0.9
+
+anova(m1_1)
+anova(m2_1)
+anova(m3_1)
+anova(m4_1)
+anova(m5_1)
+anova(m6_1)#context
+anova(m7_1)#context
+anova(m8_1)#context
+anova(m9_1)
+
+step(m1_1,direction="both")#dur ~ (1 | site/context)
+step(m2_1,direction="both")#brk ~ (1 | site/context)
+step(m3_1,direction="both")#dtm ~ (1 | site/context)
+step(m4_1,direction="both")#pf ~ (1 | site/context)
+step(m5_1,direction="both")#minf ~ (1 | site/context)
+step(m6_1,direction="both")#**maxf ~ context + (1 | site/context)
+step(m7_1,direction="both")#**bw ~ context + (1 | site/context)
+step(m8_1,direction="both")#etrp ~ (1 | site/context)
+step(m9_1,direction="both")#hnr ~ (1 | context:site)
+
+library(emmeans)
+red_m6_1=lmer(maxf ~ context + (1 | site/context),data=dat,control = lmerControl(optimizer = "Nelder_Mead"))
+anova(red_m6_1)
+emmeans(red_m6_1,specs=pairwise~context,adjust="none")
+
+red_m7_1=lmer(bw ~ context + (1 | site/context),data=dat)
+anova(red_m7_1)
+emmeans(red_m7_1,specs=pairwise~context,adjust="none")
+
+
+
+```
+2. structural variation
+2.1 predicting position of D notes within a call-only in [9D]
+
+```{r}
+str_dat=read.csv("~/Google Drive/UT/papers/Dissertation/study 3/structure_position.csv",header=T)
+str_dat=str_dat[,c(7,10:18,31,2,3)]
+head(str_dat)
+scaled_var=scale(str_dat[,2:10], center=T, scale=T)
+str_dat=cbind(str_dat[,1],scaled_var,str_dat[,11:13])
+head(str_dat)
+dim(str_dat)
+#changing column names
+names(str_dat)[1]="position"
+names(str_dat)[2]="dur"
+names(str_dat)[3]="brk"
+names(str_dat)[4]="dtm"
+names(str_dat)[5]="pf"
+names(str_dat)[6]="minf"
+names(str_dat)[7]="maxf"
+names(str_dat)[8]="bw"
+names(str_dat)[9]="etrp"
+names(str_dat)[10]="hnr"
+head(str_dat)
+```
+
+
+#step 1. Choosing which model should be the full model comparing AIC by differing random effect
+#Below two models x converge
+str_m1 <- lmer(position~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+context*Location+(dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr|site/context),data=str_dat)#Random slope model. x converge
+str_m2 <- lmer(position~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+context*Location+(1+dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr|site/context),data=str_dat)#both Random intercept and random slope model. didn't converge.
+str_m <- lmer(position~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+context*Location+(1|site/context),data=str_dat)#Random intercept model. Easiest model. Converged. but later on, the reduced model didn't converge so chose the one below
+```{r}
+str_m3 <- lmer(position~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+context*Location+(1|site:context),data=str_dat)# site:context means nested structure. Chose this model as the full model.
+
+summary(str_m3)
+str_m3_red=lmer(position~brk+pf+etrp+hnr+(1|site:context),dat=str_dat)
+shapiro.test(resid(str_m3_red))# W>0.9
+summary(str_m3_red)
+```
+
+```{r}
+library(ggplot2)
+  ggplot(str_dat,aes(x=as.factor(position),y=brk))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(title="",x="Position", y = "Inter-note interval") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))+
+    coord_flip()
+
+  ggplot(str_dat,aes(x=as.factor(position),y=pf))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(title="",x="Position", y = "Peak frequency") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))+
+    coord_flip()
+  
+  ggplot(str_dat,aes(x=as.factor(position),y=etrp))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(title="",x="Position", y = "Entropy") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))+
+    coord_flip()
+  
+  ggplot(str_dat,aes(x=as.factor(position),y=hnr))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(title="",x="Position", y = "hnr") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))+
+    coord_flip()
+
+```
+2.2 Predicting call length only in [D] 
+
+
+```{r}
+#don't use cbind to combine data. Only returns matrix that can't hold both numeric and non-numeric values
+ldat=cbind(sdat,dat$length)
+colnames(ldat)[10]="length"
+
+#use data.frame() instead
+ldat=data.frame(sdat,dat$length,dat$site,dat$context,dat$Location,dat$calltype)
+dim(sdat)
+length(dat$length)
+length(dat$site)
+length(dat$context)
+length(dat$Location)
+length(dat$calltype)
+
+levels(ldat$dat.length)
+
+
+
+```
+
+```{r}
+#changing non-numeric values into NAs
+ldat$dat.length=as.numeric(as.character(ldat$dat.length))
+
+#write.csv(dat,"4851_simplifiedcalltype")
+#dat[,3]=as.numeric(as.character(dat[,3]))
+library(na.tools)
+ldat=na.rm(ldat)
+dim(ldat)
+#within ldat, choose only rows that call type is D.
+#after this, the sample size should be 1051. (now it is 4371)
+
+lddat=ldat[ldat$dat.calltype=="d",]
+dim(lddat)#1051. correct.
+
+hist(lddat$dat.length)#seems like poisson or nb
+
+mean(lddat$dat.length)#9.52
+var(lddat$dat.length)#22.56
+#Maybe overdispersed. Negative binomial.
+
+head(lddat)
+
+
+
+```
+
+```{r}
+# Location and context should be added in order to control the confounding effect
+library(lmerTest)
+lddat.fit1=lmer(dat.length~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+dat.Location*dat.context+(1|dat.site/dat.context),data=ldat)#chose the wrong dataset. it's not ldat but lddat
+lddat.fit1=lmer(dat.length~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+dat.Location*dat.context+(1|dat.site/dat.context),data=lddat)#try this model.
+
+lddat.fit2=lmer(dat.length~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+dat.Location*dat.context+(1|dat.site/dat.context),data=lddat)#try this model.
+
+#lddat.fit2=lmer(log(dat.length)~dur+brk+dtm+pf+minf+maxf+bw+etrp+hnr+dat.Location*dat.context+(1|dat.site/dat.context),data=lddat) # even though the log transformation, still outliers exist. not meaningful to use this model
+shapiro.test(resid(lddat.fit1))#W>0.9
+summary(lddat.fit1)
+#summary(lddat.fit2)
+
+red_lddat.fit1=lmer(dat.length ~ etrp + hnr + (1 | dat.site/dat.context),data=lddat)
+summary(red_lddat.fit1)
+
+```
+
+
+```{r}
+
+ggplot(lddat,aes(x=etrp,y=dat.length))+
+  geom_smooth(method="lm")+
+ # geom_point()+
+  theme_classic()+
+  labs(title="",x="Entropy (Z score)", y = "Call length") +
+ # ylim(0,30)+
+#  xlim(-5,5)+
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))
+
+ggplot(lddat,aes(x=hnr,y=dat.length))+
+  geom_smooth(method="lm")+
+  theme_classic()+
+  labs(title="",x="HNR (Z score)", y = "Call length") +
+  theme(legend.position="none")+
+  theme(text = element_text(size=20))
+
+```
