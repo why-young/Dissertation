@@ -137,38 +137,8 @@ library(car)
 
 ``` r
 D_m1=glmmTMB(D~treatment_4*cach+log(pre_D+1)+(1|site),family=nbinom2(link = "log"),data=playback_dat1)
-summary(D_m1)
 ```
 
-    ##  Family: nbinom2  ( log )
-    ## Formula:          D ~ treatment_4 * cach + log(pre_D + 1) + (1 | site)
-    ## Data: playback_dat1
-    ## 
-    ##      AIC      BIC   logLik deviance df.resid 
-    ##    691.8    720.0   -334.9    669.8       85 
-    ## 
-    ## Random effects:
-    ## 
-    ## Conditional model:
-    ##  Groups Name        Variance  Std.Dev. 
-    ##  site   (Intercept) 4.044e-09 6.359e-05
-    ## Number of obs: 96, groups:  site, 24
-    ## 
-    ## Overdispersion parameter for nbinom2 family (): 0.45 
-    ## 
-    ## Conditional model:
-    ##                    Estimate Std. Error z value Pr(>|z|)  
-    ## (Intercept)          2.9941     1.6391   1.827   0.0677 .
-    ## treatment_4FP       -1.6917     2.3245  -0.728   0.4668  
-    ## treatment_4PF       -0.8082     2.3183  -0.349   0.7274  
-    ## treatment_4PP        1.7512     2.3282   0.752   0.4519  
-    ## cach                -0.5078     0.7337  -0.692   0.4888  
-    ## log(pre_D + 1)       0.2833     0.1132   2.502   0.0123 *
-    ## treatment_4FP:cach   0.7571     1.0166   0.745   0.4565  
-    ## treatment_4PF:cach   0.4785     1.0107   0.473   0.6359  
-    ## treatment_4PP:cach  -0.7527     1.0187  -0.739   0.4600  
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ``` r
 Anova(D_m1,type=3)# Report this result
@@ -188,38 +158,9 @@ Anova(D_m1,type=3)# Report this result
 
 ``` r
 H_m1=glmmTMB(H~treatment_4*cach+log(pre_H+1)+(1|site),family=nbinom2(link = "log"),data=playback_dat1)
-summary(H_m1)
+
 ```
 
-    ##  Family: nbinom2  ( log )
-    ## Formula:          H ~ treatment_4 * cach + log(pre_H + 1) + (1 | site)
-    ## Data: playback_dat1
-    ## 
-    ##      AIC      BIC   logLik deviance df.resid 
-    ##    189.1    217.3    -83.5    167.1       85 
-    ## 
-    ## Random effects:
-    ## 
-    ## Conditional model:
-    ##  Groups Name        Variance Std.Dev.
-    ##  site   (Intercept) 1.552    1.246   
-    ## Number of obs: 96, groups:  site, 24
-    ## 
-    ## Overdispersion parameter for nbinom2 family (): 1.86 
-    ## 
-    ## Conditional model:
-    ##                      Estimate Std. Error z value Pr(>|z|)  
-    ## (Intercept)            0.3716     2.4324   0.153   0.8786  
-    ## treatment_4FP          0.1947     2.5253   0.077   0.9385  
-    ## treatment_4PF         -1.2181     2.9708  -0.410   0.6818  
-    ## treatment_4PP         40.5143 22655.4348   0.002   0.9986  
-    ## cach                  -0.9452     1.1208  -0.843   0.3991  
-    ## log(pre_H + 1)         1.5692     0.6312   2.486   0.0129 *
-    ## treatment_4FP:cach    -0.1263     1.1101  -0.114   0.9094  
-    ## treatment_4PF:cach     0.1525     1.3034   0.117   0.9069  
-    ## treatment_4PP:cach   -20.2809 11327.7177  -0.002   0.9986  
-    ## ---
-    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ``` r
 Anova(H_m1,type=3)
@@ -239,36 +180,8 @@ Anova(H_m1,type=3)
 
 ``` r
 C_m1=glmmTMB(C~treatment_4*cach+log(pre_C+1)+(1|site),family=nbinom2(link = "log"), data=playback_dat1)
-summary(C_m1)
 ```
 
-    ##  Family: nbinom2  ( log )
-    ## Formula:          C ~ treatment_4 * cach + log(pre_C + 1) + (1 | site)
-    ## Data: playback_dat1
-    ## 
-    ##      AIC      BIC   logLik deviance df.resid 
-    ##    422.4    450.6   -200.2    400.4       85 
-    ## 
-    ## Random effects:
-    ## 
-    ## Conditional model:
-    ##  Groups Name        Variance  Std.Dev. 
-    ##  site   (Intercept) 1.713e-08 0.0001309
-    ## Number of obs: 96, groups:  site, 24
-    ## 
-    ## Overdispersion parameter for nbinom2 family (): 0.197 
-    ## 
-    ## Conditional model:
-    ##                    Estimate Std. Error z value Pr(>|z|)
-    ## (Intercept)         0.69428    2.59910   0.267    0.789
-    ## treatment_4FP       1.30116    3.68099   0.354    0.724
-    ## treatment_4PF       0.88507    3.64358   0.243    0.808
-    ## treatment_4PP       0.03907    3.58556   0.011    0.991
-    ## cach                0.08423    1.15391   0.073    0.942
-    ## log(pre_C + 1)      0.31844    0.20964   1.519    0.129
-    ## treatment_4FP:cach -0.12541    1.60060  -0.078    0.938
-    ## treatment_4PF:cach -0.48172    1.56900  -0.307    0.759
-    ## treatment_4PP:cach -0.18510    1.55869  -0.119    0.905
 
 ``` r
 Anova(C_m1,type=3)
@@ -286,36 +199,8 @@ Anova(C_m1,type=3)
 
 ``` r
 I_m1=glmmTMB(I~treatment_4*cach+log(pre_I+1)+(1|site),family=nbinom2(link = "log"), data=playback_dat1)
-summary(I_m1)
 ```
 
-    ##  Family: nbinom2  ( log )
-    ## Formula:          I ~ treatment_4 * cach + log(pre_I + 1) + (1 | site)
-    ## Data: playback_dat1
-    ## 
-    ##      AIC      BIC   logLik deviance df.resid 
-    ##    620.4    648.6   -299.2    598.4       85 
-    ## 
-    ## Random effects:
-    ## 
-    ## Conditional model:
-    ##  Groups Name        Variance Std.Dev.
-    ##  site   (Intercept) 0.3829   0.6188  
-    ## Number of obs: 96, groups:  site, 24
-    ## 
-    ## Overdispersion parameter for nbinom2 family (): 0.543 
-    ## 
-    ## Conditional model:
-    ##                    Estimate Std. Error z value Pr(>|z|)
-    ## (Intercept)          0.3157     1.8887   0.167    0.867
-    ## treatment_4FP       -1.0594     2.2252  -0.476    0.634
-    ## treatment_4PF        0.9969     2.4708   0.404    0.687
-    ## treatment_4PP        1.4372     2.4300   0.591    0.554
-    ## cach                 0.7654     0.8233   0.930    0.353
-    ## log(pre_I + 1)       0.1253     0.1732   0.723    0.470
-    ## treatment_4FP:cach   0.5456     0.9486   0.575    0.565
-    ## treatment_4PF:cach  -0.6044     1.0904  -0.554    0.579
-    ## treatment_4PP:cach  -0.9646     1.0753  -0.897    0.370
 
 ``` r
 Anova(I_m1,type=3)
